@@ -230,19 +230,51 @@ function setCachedData(key, data) {
     cache.set(key, { data, timestamp: Date.now() });
 }
 
+// --- FUNGSI YANG SUDAH DIPERBAIKI ---
 // Fungsi Pencarian Stream Terbaik
 function getBestVideoStreamUrl(info, resolution) {
     const formats = info.formats || [];
     const targetResolution = parseInt(resolution, 10) || Infinity;
-    // Cari format video+audio terbaik yang <= target resolusi
+
+    // --- PERUBAHAN: Prioritaskan format MP4 non-HLS ---
+    // 1. Filter untuk mendapatkan format progressive (bukan streaming seperti HLS/DASH)
+    //    dan memiliki video dan audio.
+    const progressiveFormats = formats.filter(f => 
+        f.vcodec !== 'none' && 
+        f.acodec !== 'none' && 
+        f.protocol !== 'hls' && // <<<< KUNCI: Hindari format HLS
+        f.protocol !== 'dash' && // <<<< KUNCI: Hindari format DASH
+        f.height && 
+        f.height <= targetResolution
+    );
+
+    // 2. Dari format progressive, prioritaskan yang berekstensi .mp4
+    const mp4Formats = progressiveFormats.filter(f => f.ext === 'mp4');
+
+    // 3. Jika ada format MP4, pilih yang terbaik
+    if (mp4Formats.length > 0) {
+        mp4Formats.sort((a, b) => (b.height || 0) - (a.height || 0) || (b.tbr || 0) - (a.tbr || 0));
+        return mp4Formats[0].url;
+    }
+
+    // 4. Jika tidak ada MP4, gunakan format progressive terbaik lainnya
+    if (progressiveFormats.length > 0) {
+        progressiveFormats.sort((a, b) => (b.height || 0) - (a.height || 0) || (b.tbr || 0) - (a.tbr || 0));
+        return progressiveFormats[0].url;
+    }
+
+    // --- FALLBACK: Logika lama jika tidak ada format progressive yang cocok ---
+    logger.warn(`Could not find a suitable progressive MP4 stream for resolution ${resolution}. Falling back to default selection.`);
     let validFormats = formats.filter(f => f.vcodec !== 'none' && f.acodec !== 'none' && f.height && f.height <= targetResolution);
     if (validFormats.length === 0) validFormats = formats.filter(f => f.vcodec !== 'none' && f.acodec !== 'none');
     if (validFormats.length > 0) {
         validFormats.sort((a, b) => (b.height || 0) - (a.height || 0) || (b.fps || 0) - (a.fps || 0) || (b.tbr || 0) - (a.tbr || 0));
         return validFormats[0].url;
     }
+
     return null;
 }
+
 function getBestAudioStreamUrl(info) {
     const formats = info.formats || [];
     const audioFormats = formats.filter(f => f.vcodec === 'none' && f.acodec !== 'none');
@@ -406,14 +438,16 @@ app.get('/search', async (req, res) => {
 // --- ENDPOINT UNDUHAN ---
 app.get('/download', (req, res) => {
     const quality = req.query.quality || "1080";
-    const ydlOptions = `-f "best[height<=${quality}]+bestaudio/best[height<=${quality}]/best" --merge-output-format mp4 --retries 3`;
+    // PERBAIKAN: Tambahkan --embed-thumbnail
+    const ydlOptions = `-f "best[height<=${quality}]+bestaudio/best[height<=${quality}]/best" --merge-output-format mp4 --embed-thumbnail --retries 3`;
     handleDownload(req, res, ydlOptions, ["mp4", "webm", "mkv"], "download_video");
 });
 
 app.get('/download-audio', (req, res) => {
     const quality = req.query.quality || "best";
     const formatSelector = quality === "best" ? 'bestaudio/best' : `bestaudio[abr<=${quality}]/bestaudio`;
-    const ydlOptions = `-f "${formatSelector}" -x --audio-format mp3 --audio-quality ${quality === "best" ? 0 : quality} --embed-thumbnail --retries 3`;
+    // PERBAIKAN: Tambahkan --embed-thumbnail --embed-metadata
+    const ydlOptions = `-f "${formatSelector}" -x --audio-format mp3 --audio-quality ${quality === "best" ? 0 : quality} --embed-thumbnail --embed-metadata --retries 3`;
     handleDownload(req, res, ydlOptions, ["mp3"], "download_audio");
 });
 
@@ -424,7 +458,12 @@ app.get('/stream-video', async (req, res) => {
     try {
         let info = getCachedData(url);
         if (!info) { info = await ytDlpWrap.getVideoInfo(url, ytDlpOptions); setCachedData(url, info); }
+        
         const streamUrl = getBestVideoStreamUrl(info, resolution);
+
+        // >>> TAMBAHKAN BARIS INI UNTUK DEBUGGING <<<
+        console.log(`>>> URL YANG AKAN DIPROXY: ${streamUrl}`);
+
         if (!streamUrl) return res.status(404).json({ detail: 'Tidak dapat menemukan URL stream video yang sesuai' });
         await proxyStream(req, res, streamUrl, 'video/mp4');
     } catch (e) {

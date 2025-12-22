@@ -15,3 +15,59 @@
 {"level":"error","message":"audio download failed: Gagal menjalankan yt-dlp: ERROR: [youtube] gboCTcvpF38: Requested format is not available. Use --list-formats for a list of available formats\n from ::1","service":"youtube-hybrid-server","timestamp":"2025-12-11 09:30:59"}
 {"level":"error","message":"Search failed: searchResults.entries.map is not a function","service":"youtube-hybrid-server","timestamp":"2025-12-11 10:32:19"}
 {"level":"error","message":"Search failed: searchResults.entries.map is not a function","service":"youtube-hybrid-server","timestamp":"2025-12-11 10:32:20"}
+{"level":"error","message":"Search failed: stdout maxBuffer length exceeded","service":"youtube-hybrid-server","timestamp":"2025-12-16 16:46:59"}
+{"level":"error","message":"Search failed: stdout maxBuffer length exceeded","service":"youtube-hybrid-server","timestamp":"2025-12-16 16:47:05"}
+{"level":"error","message":"Search failed: stdout maxBuffer length exceeded","service":"youtube-hybrid-server","timestamp":"2025-12-16 16:47:37"}
+{"level":"error","message":"Search failed: stdout maxBuffer length exceeded","service":"youtube-hybrid-server","timestamp":"2025-12-16 16:47:42"}
+{"level":"error","message":"Search failed: stdout maxBuffer length exceeded","service":"youtube-hybrid-server","timestamp":"2025-12-16 16:48:44"}
+{"level":"error","message":"Search failed: stdout maxBuffer length exceeded","service":"youtube-hybrid-server","timestamp":"2025-12-16 16:49:58"}
+{"level":"error","message":"Search failed: stdout maxBuffer length exceeded","service":"youtube-hybrid-server","timestamp":"2025-12-16 16:50:27"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:30:47"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:30:48"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:30:49"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:30:51"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:31:01"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:31:01"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:31:02"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:31:04"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:31:36"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:31:37"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:31:38"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:31:41"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:32:19"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:32:19"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:32:20"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:32:23"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:32:41"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:32:42"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:32:43"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:32:45"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:33:00"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:33:00"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:33:01"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:33:04"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:33:48"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:33:48"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:33:49"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:33:52"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:36:11"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:36:12"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:36:13"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:36:15"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:36:46"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:36:46"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:36:47"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:36:49"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:37:01"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:37:02"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:37:03"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:37:05"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:37:45"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:37:46"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:37:47"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:37:49"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:42:01"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:42:01"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:42:02"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:42:04"}
+{"level":"error","message":"Audio streaming failed: getBestAudioStreamUrl is not defined","service":"youtube-hybrid-server","timestamp":"2025-12-22 06:55:41"}
