@@ -13,16 +13,18 @@ const axios = require('axios');
 // --- KONFIGURASI UTAMA ---
 const app = express();
 const PORT = process.env.PORT || 8000;
-const MAX_CONCURRENT_DOWNLOADS = 2; // Turunkan sedikit untuk stabil di Vercel
+const MAX_CONCURRENT_DOWNLOADS = 2; // Vercel limit
 
 // Konfigurasi direktori temp
 const TEMP_DIR = path.join(os.tmpdir(), 'yt_downloader_nodejs_');
-const CLEANUP_INTERVAL = 3600 * 1000; // 1 jam
+const CLEANUP_INTERVAL = 3600 * 1000;
 const COOKIE_PATH = path.join(TEMP_DIR, 'cookies.txt');
 const CACHE_TTL = 10 * 60 * 1000; 
 
 // --- PATH BINARY YTDLP ---
 const YTDLP_BINARY_PATH = path.join(os.tmpdir(), 'yt-dlp'); 
+// Ambil path node executable yang sedang berjalan (untuk JS Runtime)
+const NODE_RUNTIME_PATH = process.execPath; 
 
 // --- INISIALISASI ---
 let ytDlpWrap;
@@ -49,9 +51,8 @@ const logger = winston.createLogger({
 });
 
 // Buat direktori jika tidak ada
-const logsDir = path.join(process.cwd(), 'logs');
-fs.mkdir(logsDir, { recursive: true }).catch(err => {
-  if (err.code !== 'EEXIST') logger.error('Failed to create logs directory:', err);
+fs.mkdir(TEMP_DIR, { recursive: true }).catch(err => {
+  if (err.code !== 'EEXIST') logger.error('Failed to create TEMP_DIR:', err);
 });
 
 const cache = new Map();
@@ -67,7 +68,7 @@ async function checkFFmpeg() {
         return true;
     } catch (e) {
         ffmpegAvailable = false;
-        logger.warn('FFmpeg not found. Video merging will fallback to progressive format.');
+        logger.warn('FFmpeg not found.');
         return false;
     }
 }
@@ -77,7 +78,10 @@ async function initializeCookie() {
         await fs.mkdir(TEMP_DIR, { recursive: true });
         if (cookieTxt.trim()) {
             await fs.writeFile(COOKIE_PATH, cookieTxt.trim() + '\n');
+            logger.info(`Cookie file created at: ${COOKIE_PATH}`);
             isCookieReady = true;
+        } else {
+            logger.warn('YOUTUBE_COOKIES env var is empty or missing. Requests might fail due to bot detection.');
         }
     } catch (e) {
         logger.error(`Cookie write error: ${e.message}`);
@@ -93,42 +97,24 @@ function execPromise(command) {
     });
 }
 
-// --- PERBAIKAN UTAMA: FUNGSI MANUAL DOWNLOAD BINARY ---
 async function downloadYtDlpBinary() {
     try {
-        // Cek apakah sudah ada dan bukan kosong
         try {
             const stats = await fs.stat(YTDLP_BINARY_PATH);
-            if (stats.size > 1000) { // Pastikan ukurannya wajar (> 1KB)
-                logger.info('yt-dlp binary already exists.');
-                return;
-            } else {
-                await fs.unlink(YTDLP_BINARY_PATH);
-            }
-        } catch (e) {
-            // File tidak ada, abaikan
-        }
+            if (stats.size > 1000) return; 
+        } catch (e) {}
 
         logger.info('Downloading yt-dlp binary...');
-        
-        // Deteksi arsitektur CPU
         const arch = os.arch();
+        // Gunakan binary Linux standar (x86_64) atau ARM jika perlu
+        // Vercel umumnya menggunakan AMD64
         let binaryUrl = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux';
         
         if (arch === 'arm64') {
-            logger.info('Detected ARM64 architecture, downloading ARM64 binary...');
             binaryUrl = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux_aarch64';
-        } else {
-            logger.info('Detected x64 architecture, downloading standard Linux binary...');
         }
 
-        const response = await axios({
-            method: 'GET',
-            url: binaryUrl,
-            responseType: 'stream'
-        });
-
-        // Tulis stream ke file
+        const response = await axios({ method: 'GET', url: binaryUrl, responseType: 'stream' });
         const writer = require('fs').createWriteStream(YTDLP_BINARY_PATH);
         response.data.pipe(writer);
 
@@ -137,26 +123,22 @@ async function downloadYtDlpBinary() {
             writer.on('error', reject);
         });
 
-        // Jadikan executable (chmod +x)
         await fs.chmod(YTDLP_BINARY_PATH, '755');
-        logger.info('yt-dlp binary downloaded and made executable successfully.');
-
+        logger.info('yt-dlp binary downloaded and made executable.');
     } catch (error) {
         logger.error('Failed to download yt-dlp binary:', error.message);
         throw error;
     }
 }
 
-// --- Opsi yt-dlp ---
 let ytDlpOptions = {
     noCallHome: true,
     noCacheDir: true,
     addHeader: [
-        'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
+        'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     ]
 };
 
-// Semaphore
 class Semaphore {
   constructor(maxConcurrency) {
     this.maxConcurrency = maxConcurrency;
@@ -192,7 +174,6 @@ class Semaphore {
 }
 const downloadLimit = new Semaphore(MAX_CONCURRENT_DOWNLOADS);
 
-// --- MIDDLEWARE ---
 app.use(cors());
 app.use(express.json());
 
@@ -201,8 +182,7 @@ app.use((req, res, next) => {
   const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
   res.on('finish', () => {
     const duration = Date.now() - start;
-    const logData = { method: req.method, url: req.url, statusCode: res.statusCode, duration: `${duration}ms`, ip: clientIp };
-    logger.info('HTTP Request', logData);
+    logger.info(`${req.method} ${req.url} ${res.statusCode} - ${duration}ms - ${clientIp}`);
   });
   next();
 });
@@ -211,28 +191,55 @@ app.use((req, res, next) => {
 
 app.get('/', (req, res) => {
     res.json({ 
-        message: "Server YouTube Vercel (Stable)", 
-        version: "2.0.1",
+        message: "YouTube API Vercel (Bot-Bypass Attempt)", 
         status: {
             yt_dlp: YTDLP_BINARY_PATH,
             ffmpeg: ffmpegAvailable ? "available" : "not available",
-            cookie: isCookieReady ? "loaded" : "none"
+            cookie: isCookieReady ? "loaded" : "MISSING (Likely cause of errors)",
+            node_runtime: NODE_RUNTIME_PATH
         }
     });
 });
 
-// Helper untuk get info
 async function getInfo(url) {
     const cached = getCachedData(url);
     if (cached) return cached;
 
-    const options = { ...ytDlpOptions };
-    if (isCookieReady) options.cookies = COOKIE_PATH;
-    options.jsRuntime = 'node'; // Tetap gunakan js-runtime node jika library mendukungnya untuk fungsi JS
+    const options = { 
+        ...ytDlpOptions,
+        // Coba inject cookie path jika memungkinkan, tapi YTDlpWrap library kadang bermasalah dengan path absolut di lambda
+        // Kita lebih mengandalkan exec manual untuk kontrol penuh command line
+    };
 
-    const info = await ytDlpWrap.getVideoInfo(url, options);
-    setCachedData(url, info);
-    return info;
+    try {
+        // Gunakan wrapper jika ingin mencoba, tapi gunakan fallback manual jika gagal
+        const info = await ytDlpWrap.getVideoInfo(url, options);
+        setCachedData(url, info);
+        return info;
+    } catch (e) {
+        // Jika wrapper gagal (misal js runtime issue), kita coba fetch manual
+        logger.warn("YTDlpWrap.getVideoInfo failed, trying manual exec fallback...");
+        return getVideoInfoManual(url);
+    }
+}
+
+// Manual Fallback untuk mengatasi masalah JS Runtime & Cookies
+async function getVideoInfoManual(url) {
+    const cookieOption = isCookieReady ? `--cookies "${COOKIE_PATH}"` : '';
+    // Paksa gunakan node runtime yang sama dengan server
+    const jsRuntimeOption = `--js-runtime "${NODE_RUNTIME_PATH}"`;
+    const extractorArgs = '--extractor-args "youtube:player_client=android"'; // Trik bypass
+    
+    const command = `"${YTDLP_BINARY_PATH}" ${cookieOption} ${jsRuntimeOption} ${extractorArgs} --dump-json "${url}"`;
+    
+    try {
+        const { stdout } = await execPromise(command);
+        const info = JSON.parse(stdout);
+        setCachedData(url, info);
+        return info;
+    } catch (e) {
+        throw new Error(`Manual exec failed: ${e.message}`);
+    }
 }
 
 function getCachedData(key) {
@@ -261,8 +268,11 @@ app.get('/search', async (req, res) => {
     const { query } = req.query;
     if (!query) return res.status(400).json({ detail: "Query 'query' diperlukan" });
     try {
-        // Gunakan binary path secara eksplisit
-        const command = `"${YTDLP_BINARY_PATH}" --js-runtime node --dump-json "ytsearch5:${query}"`;
+        const cookieOption = isCookieReady ? `--cookies "${COOKIE_PATH}"` : '';
+        const jsRuntimeOption = `--js-runtime "${NODE_RUNTIME_PATH}"`;
+        const extractorArgs = '--extractor-args "youtube:player_client=android"';
+        
+        const command = `"${YTDLP_BINARY_PATH}" ${cookieOption} ${jsRuntimeOption} ${extractorArgs} --dump-json "ytsearch5:${query}"`;
         const { stdout } = await execPromise(command);
         const lines = stdout.trim().split('\n');
         const videos = lines.filter(line => line.trim()).map(line => JSON.parse(line));
@@ -279,7 +289,8 @@ app.get('/search', async (req, res) => {
 function getBestVideoStreamUrl(info, resolution) {
     const formats = info.formats || [];
     const targetResolution = parseInt(resolution, 10) || Infinity;
-
+    
+    // Prioritaskan format audio+video gabungan (progressive) agar tidak perlu merge di server
     const progressiveFormats = formats.filter(f => 
         f.vcodec !== 'none' && f.acodec !== 'none' && 
         f.protocol !== 'hls' && f.protocol !== 'dash' && 
@@ -291,13 +302,7 @@ function getBestVideoStreamUrl(info, resolution) {
         mp4Formats.sort((a, b) => (b.height || 0) - (a.height || 0));
         return mp4Formats[0].url;
     }
-
-    if (progressiveFormats.length > 0) {
-        progressiveFormats.sort((a, b) => (b.height || 0) - (a.height || 0));
-        return progressiveFormats[0].url;
-    }
-
-    return null;
+    return progressiveFormats[0]?.url || null;
 }
 
 function getBestAudioStreamUrl(info) {
@@ -321,7 +326,6 @@ async function proxyStream(req, res, streamUrl, mediaType) {
         if (response.headers['content-length']) res.header('Content-Length', response.headers['content-length']);
         if (response.headers['content-range']) res.header('Content-Range', response.headers['content-range']);
         if (response.headers['accept-ranges']) res.header('Accept-Ranges', response.headers['accept-ranges']);
-        
         response.data.pipe(res);
     } catch (error) {
         logger.error(`Proxy error: ${error.message}`);
@@ -369,12 +373,13 @@ async function handleDownload(req, res, ydlOptions, fileExtensions, tempDirPrefi
     logger.info(`[${downloadId}] Processing download...`);
 
     const outputPath = path.join(tempDir, '%(title)s.%(ext)s');
-    const cookieOption = isCookieReady ? `--cookies "${COOKIE_PATH.replace(/\\/g, '/')}"` : '';
     
-    // Gunakan path binary yang kita download manual
-    const binaryOption = `"${YTDLP_BINARY_PATH}"`;
+    // --- BUILD COMMAND DENGAN COOKIE & JS RUNTIME ---
+    const cookieOption = isCookieReady ? `--cookies "${COOKIE_PATH}"` : '';
+    const jsRuntimeOption = `--js-runtime "${NODE_RUNTIME_PATH}"`;
+    const extractorArgs = '--extractor-args "youtube:player_client=android"';
     
-    const command = `${binaryOption} ${cookieOption} -f "${ydlOptions}" -o "${outputPath}" "${url}"`;
+    const command = `"${YTDLP_BINARY_PATH}" ${cookieOption} ${jsRuntimeOption} ${extractorArgs} -f "${ydlOptions}" -o "${outputPath}" "${url}"`;
 
     try {
         await downloadLimit.execute(() => execPromise(command));
@@ -411,35 +416,23 @@ async function handleDownload(req, res, ydlOptions, fileExtensions, tempDirPrefi
 
 app.get('/download', (req, res) => {
     const quality = req.query.quality || "1080";
-    let formatSelector;
-    
-    if (!ffmpegAvailable) {
-        formatSelector = 'best[ext=mp4]/best';
-    } else if (quality === "best") {
-        formatSelector = 'bestvideo[height<=1080]+bestaudio/best';
-    } else {
-        formatSelector = `bestvideo[height<=${quality}]+bestaudio/best[height<=${quality}]`;
-    }
-    
+    // Gunakan format selector yang lebih aman
+    const formatSelector = `bestvideo[height<=${quality}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${quality}]+bestaudio/best[height<=${quality}]/best`;
     handleDownload(req, res, formatSelector, ["mp4"], "download_video");
 });
 
 app.get('/download-audio', (req, res) => {
-    handleDownload(req, res, "bestaudio/best", ["mp3", "m4a"], "download_audio");
+    handleDownload(req, res, "bestaudio[ext=m4a]/bestaudio", ["mp3", "m4a"], "download_audio");
 });
 
 // --- STARTUP ---
 async function startServer() {
     await initializeCookie();
     await checkFFmpeg();
-
-    // 1. Download Binary Secara Manual (Fix utama)
     await downloadYtDlpBinary();
 
-    // 2. Inisialisasi Wrapper
     ytDlpWrap = new YTDlpWrap(YTDLP_BINARY_PATH);
     
-    // 3. Cleanup interval
     setInterval(async () => {
         try {
             const dirs = await fs.readdir(TEMP_DIR);
@@ -452,10 +445,9 @@ async function startServer() {
 
     app.listen(PORT, () => {
         logger.info(`Server started on port ${PORT}`);
-        logger.info(`yt-dlp binary initialized at: ${YTDLP_BINARY_PATH}`);
+        logger.info(`Node Runtime: ${NODE_RUNTIME_PATH}`);
     });
 }
 
 startServer();
-
 process.on('SIGINT', () => process.exit(0));
