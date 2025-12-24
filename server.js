@@ -75,17 +75,38 @@ async function checkFFmpeg() {
 async function initializeCookie() {
     try {
         await fs.mkdir(TEMP_DIR, { recursive: true });
-        if (cookieTxt.trim()) {
-            // PERBAIKAN KRUSIAL: Sanitasi format cookie
-            let cleanCookies = cookieTxt.trim();
-            cleanCookies = cleanCookies.replace(/\\t/g, '\t');
-            cleanCookies = cleanCookies.replace(/\\n/g, '\n');
+        let cleanCookies = process.env.YOUTUBE_COOKIES || '';
+
+        if (cleanCookies.trim()) {
+            // 1. Trim whitespace
+            cleanCookies = cleanCookies.trim();
+
+            // 2. Hapus tanda kutip ganda di awal dan akhir jika user paste salah
+            if ((cleanCookies.startsWith('"') && cleanCookies.endsWith('"')) ||
+                (cleanCookies.startsWith("'") && cleanCookies.endsWith("'"))) {
+                logger.info('Removing surrounding quotes from cookie string...');
+                cleanCookies = cleanCookies.slice(1, -1);
+            }
             
+            // 3. Sanitasi Karakter Escape (PENTING)
+            // Jika user copy-paste env var, \n jadi \\n
+            // Kita ubah literal string "\n" jadi karakter Enter
+            cleanCookies = cleanCookies.replace(/\\n/g, '\n');
+            cleanCookies = cleanCookies.replace(/\\r/g, '\r');
+            cleanCookies = cleanCookies.replace(/\\t/g, '\t');
+            
+            // 4. Hapus baris kosong ganda
+            cleanCookies = cleanCookies.replace(/\n\s*\n/g, '\n');
+
             await fs.writeFile(COOKIE_PATH, cleanCookies + '\n');
-            logger.info(`Cookie file created and sanitized at: ${COOKIE_PATH}`);
+            
+            // Debugging: Cek 3 baris pertama untuk memastikan format
+            const lines = cleanCookies.split('\n').slice(0, 3);
+            logger.info(`Cookie file created. Sample lines: ${JSON.stringify(lines)}`);
+            
             isCookieReady = true;
         } else {
-            logger.warn('YOUTUBE_COOKIES env var is missing. YouTube might block requests.');
+            logger.warn('YOUTUBE_COOKIES env var is missing or empty.');
         }
     } catch (e) {
         logger.error(`Cookie write error: ${e.message}`);
@@ -195,11 +216,11 @@ app.use((req, res, next) => {
 
 app.get('/', (req, res) => {
     res.json({ 
-        message: "YouTube API Vercel (Cookie Fix)", 
+        message: "YouTube API Vercel (Cookie Sanitization Fix)", 
         status: {
             yt_dlp: YTDLP_BINARY_PATH,
             ffmpeg: ffmpegAvailable ? "available" : "not available",
-            cookie: isCookieReady ? "loaded" : "MISSING (CRITICAL)",
+            cookie: isCookieReady ? "loaded (sanitized)" : "MISSING",
             node_runtime: NODE_RUNTIME_PATH
         }
     });
