@@ -13,7 +13,7 @@ const axios = require('axios');
 // --- KONFIGURASI UTAMA ---
 const app = express();
 const PORT = process.env.PORT || 8000;
-const MAX_CONCURRENT_DOWNLOADS = 2; // Vercel limit
+const MAX_CONCURRENT_DOWNLOADS = 2; 
 
 // Konfigurasi direktori temp
 const TEMP_DIR = path.join(os.tmpdir(), 'yt_downloader_nodejs_');
@@ -23,8 +23,8 @@ const CACHE_TTL = 10 * 60 * 1000;
 
 // --- PATH BINARY YTDLP ---
 const YTDLP_BINARY_PATH = path.join(os.tmpdir(), 'yt-dlp'); 
-// Ambil path node executable yang sedang berjalan (untuk JS Runtime)
-const NODE_RUNTIME_PATH = process.execPath; 
+// Gunakan keyword 'node' agar yt-dlp mencari node di sistem PATH Vercel
+const NODE_RUNTIME_PATH = 'node'; 
 
 // --- INISIALISASI ---
 let ytDlpWrap;
@@ -77,11 +77,20 @@ async function initializeCookie() {
     try {
         await fs.mkdir(TEMP_DIR, { recursive: true });
         if (cookieTxt.trim()) {
-            await fs.writeFile(COOKIE_PATH, cookieTxt.trim() + '\n');
-            logger.info(`Cookie file created at: ${COOKIE_PATH}`);
+            // PERBAIKAN KRUSIAL: Sanitasi format cookie
+            // Jika user copy-paste ke Env Var, seringkali \t menjadi \\t
+            let cleanCookies = cookieTxt.trim();
+            
+            // Ganti literal string "\t" dengan karakter Tab asli
+            cleanCookies = cleanCookies.replace(/\\t/g, '\t');
+            // Ganti literal string "\n" dengan karakter Newline asli
+            cleanCookies = cleanCookies.replace(/\\n/g, '\n');
+            
+            await fs.writeFile(COOKIE_PATH, cleanCookies + '\n');
+            logger.info(`Cookie file created and sanitized at: ${COOKIE_PATH}`);
             isCookieReady = true;
         } else {
-            logger.warn('YOUTUBE_COOKIES env var is empty or missing. Requests might fail due to bot detection.');
+            logger.warn('YOUTUBE_COOKIES env var is missing. YouTube might block requests.');
         }
     } catch (e) {
         logger.error(`Cookie write error: ${e.message}`);
@@ -106,8 +115,6 @@ async function downloadYtDlpBinary() {
 
         logger.info('Downloading yt-dlp binary...');
         const arch = os.arch();
-        // Gunakan binary Linux standar (x86_64) atau ARM jika perlu
-        // Vercel umumnya menggunakan AMD64
         let binaryUrl = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux';
         
         if (arch === 'arm64') {
@@ -191,44 +198,41 @@ app.use((req, res, next) => {
 
 app.get('/', (req, res) => {
     res.json({ 
-        message: "YouTube API Vercel (Bot-Bypass Attempt)", 
+        message: "YouTube API Vercel (Cookie Fix)", 
         status: {
             yt_dlp: YTDLP_BINARY_PATH,
             ffmpeg: ffmpegAvailable ? "available" : "not available",
-            cookie: isCookieReady ? "loaded" : "MISSING (Likely cause of errors)",
+            cookie: isCookieReady ? "loaded" : "MISSING (CRITICAL)",
             node_runtime: NODE_RUNTIME_PATH
         }
     });
-});
+}
 
 async function getInfo(url) {
     const cached = getCachedData(url);
     if (cached) return cached;
 
-    const options = { 
-        ...ytDlpOptions,
-        // Coba inject cookie path jika memungkinkan, tapi YTDlpWrap library kadang bermasalah dengan path absolut di lambda
-        // Kita lebih mengandalkan exec manual untuk kontrol penuh command line
-    };
+    const options = { ...ytDlpOptions };
+    
+    // Coba paksa cookies path jika ready
+    if (isCookieReady) options.cookies = COOKIE_PATH;
+    options.jsRuntime = NODE_RUNTIME_PATH;
 
     try {
-        // Gunakan wrapper jika ingin mencoba, tapi gunakan fallback manual jika gagal
         const info = await ytDlpWrap.getVideoInfo(url, options);
         setCachedData(url, info);
         return info;
     } catch (e) {
-        // Jika wrapper gagal (misal js runtime issue), kita coba fetch manual
-        logger.warn("YTDlpWrap.getVideoInfo failed, trying manual exec fallback...");
+        logger.warn("Wrapper failed, attempting manual exec...");
         return getVideoInfoManual(url);
     }
 }
 
-// Manual Fallback untuk mengatasi masalah JS Runtime & Cookies
 async function getVideoInfoManual(url) {
     const cookieOption = isCookieReady ? `--cookies "${COOKIE_PATH}"` : '';
-    // Paksa gunakan node runtime yang sama dengan server
-    const jsRuntimeOption = `--js-runtime "${NODE_RUNTIME_PATH}"`;
-    const extractorArgs = '--extractor-args "youtube:player_client=android"'; // Trik bypass
+    const jsRuntimeOption = `--js-runtime ${NODE_RUNTIME_PATH}`;
+    // Gunakan client android untuk meminimalkan overhead JS
+    const extractorArgs = '--extractor-args "youtube:player_client=android"'; 
     
     const command = `"${YTDLP_BINARY_PATH}" ${cookieOption} ${jsRuntimeOption} ${extractorArgs} --dump-json "${url}"`;
     
@@ -269,7 +273,7 @@ app.get('/search', async (req, res) => {
     if (!query) return res.status(400).json({ detail: "Query 'query' diperlukan" });
     try {
         const cookieOption = isCookieReady ? `--cookies "${COOKIE_PATH}"` : '';
-        const jsRuntimeOption = `--js-runtime "${NODE_RUNTIME_PATH}"`;
+        const jsRuntimeOption = `--js-runtime ${NODE_RUNTIME_PATH}`;
         const extractorArgs = '--extractor-args "youtube:player_client=android"';
         
         const command = `"${YTDLP_BINARY_PATH}" ${cookieOption} ${jsRuntimeOption} ${extractorArgs} --dump-json "ytsearch5:${query}"`;
@@ -290,7 +294,7 @@ function getBestVideoStreamUrl(info, resolution) {
     const formats = info.formats || [];
     const targetResolution = parseInt(resolution, 10) || Infinity;
     
-    // Prioritaskan format audio+video gabungan (progressive) agar tidak perlu merge di server
+    // Progressive format (lebih stabil untuk bypass bot)
     const progressiveFormats = formats.filter(f => 
         f.vcodec !== 'none' && f.acodec !== 'none' && 
         f.protocol !== 'hls' && f.protocol !== 'dash' && 
@@ -373,10 +377,8 @@ async function handleDownload(req, res, ydlOptions, fileExtensions, tempDirPrefi
     logger.info(`[${downloadId}] Processing download...`);
 
     const outputPath = path.join(tempDir, '%(title)s.%(ext)s');
-    
-    // --- BUILD COMMAND DENGAN COOKIE & JS RUNTIME ---
     const cookieOption = isCookieReady ? `--cookies "${COOKIE_PATH}"` : '';
-    const jsRuntimeOption = `--js-runtime "${NODE_RUNTIME_PATH}"`;
+    const jsRuntimeOption = `--js-runtime ${NODE_RUNTIME_PATH}`;
     const extractorArgs = '--extractor-args "youtube:player_client=android"';
     
     const command = `"${YTDLP_BINARY_PATH}" ${cookieOption} ${jsRuntimeOption} ${extractorArgs} -f "${ydlOptions}" -o "${outputPath}" "${url}"`;
@@ -416,7 +418,7 @@ async function handleDownload(req, res, ydlOptions, fileExtensions, tempDirPrefi
 
 app.get('/download', (req, res) => {
     const quality = req.query.quality || "1080";
-    // Gunakan format selector yang lebih aman
+    // Selector lebih aman untuk Vercel (fokus progressive atau mp4)
     const formatSelector = `bestvideo[height<=${quality}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${quality}]+bestaudio/best[height<=${quality}]/best`;
     handleDownload(req, res, formatSelector, ["mp4"], "download_video");
 });
@@ -445,7 +447,7 @@ async function startServer() {
 
     app.listen(PORT, () => {
         logger.info(`Server started on port ${PORT}`);
-        logger.info(`Node Runtime: ${NODE_RUNTIME_PATH}`);
+        logger.info(`Cookie Loaded: ${isCookieReady}`);
     });
 }
 
