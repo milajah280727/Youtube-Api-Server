@@ -23,7 +23,6 @@ const CACHE_TTL = 10 * 60 * 1000;
 
 // --- PATH BINARY YTDLP ---
 const YTDLP_BINARY_PATH = path.join(os.tmpdir(), 'yt-dlp'); 
-// Gunakan keyword 'node' agar yt-dlp mencari node di sistem PATH Vercel
 const NODE_RUNTIME_PATH = 'node'; 
 
 // --- INISIALISASI ---
@@ -78,12 +77,8 @@ async function initializeCookie() {
         await fs.mkdir(TEMP_DIR, { recursive: true });
         if (cookieTxt.trim()) {
             // PERBAIKAN KRUSIAL: Sanitasi format cookie
-            // Jika user copy-paste ke Env Var, seringkali \t menjadi \\t
             let cleanCookies = cookieTxt.trim();
-            
-            // Ganti literal string "\t" dengan karakter Tab asli
             cleanCookies = cleanCookies.replace(/\\t/g, '\t');
-            // Ganti literal string "\n" dengan karakter Newline asli
             cleanCookies = cleanCookies.replace(/\\n/g, '\n');
             
             await fs.writeFile(COOKIE_PATH, cleanCookies + '\n');
@@ -146,6 +141,7 @@ let ytDlpOptions = {
     ]
 };
 
+// Simple Semaphore implementation
 class Semaphore {
   constructor(maxConcurrency) {
     this.maxConcurrency = maxConcurrency;
@@ -179,6 +175,7 @@ class Semaphore {
     }
   }
 }
+
 const downloadLimit = new Semaphore(MAX_CONCURRENT_DOWNLOADS);
 
 app.use(cors());
@@ -206,7 +203,7 @@ app.get('/', (req, res) => {
             node_runtime: NODE_RUNTIME_PATH
         }
     });
-}
+});
 
 async function getInfo(url) {
     const cached = getCachedData(url);
@@ -214,7 +211,6 @@ async function getInfo(url) {
 
     const options = { ...ytDlpOptions };
     
-    // Coba paksa cookies path jika ready
     if (isCookieReady) options.cookies = COOKIE_PATH;
     options.jsRuntime = NODE_RUNTIME_PATH;
 
@@ -231,7 +227,6 @@ async function getInfo(url) {
 async function getVideoInfoManual(url) {
     const cookieOption = isCookieReady ? `--cookies "${COOKIE_PATH}"` : '';
     const jsRuntimeOption = `--js-runtime ${NODE_RUNTIME_PATH}`;
-    // Gunakan client android untuk meminimalkan overhead JS
     const extractorArgs = '--extractor-args "youtube:player_client=android"'; 
     
     const command = `"${YTDLP_BINARY_PATH}" ${cookieOption} ${jsRuntimeOption} ${extractorArgs} --dump-json "${url}"`;
@@ -252,6 +247,7 @@ function getCachedData(key) {
     cache.delete(key);
     return null;
 }
+
 function setCachedData(key, data) {
     cache.set(key, { data, timestamp: Date.now() });
 }
@@ -290,11 +286,11 @@ app.get('/search', async (req, res) => {
 });
 
 // --- STREAMING ---
+
 function getBestVideoStreamUrl(info, resolution) {
     const formats = info.formats || [];
     const targetResolution = parseInt(resolution, 10) || Infinity;
     
-    // Progressive format (lebih stabil untuk bypass bot)
     const progressiveFormats = formats.filter(f => 
         f.vcodec !== 'none' && f.acodec !== 'none' && 
         f.protocol !== 'hls' && f.protocol !== 'dash' && 
@@ -364,6 +360,7 @@ app.get('/stream-audio', async (req, res) => {
 });
 
 // --- DOWNLOAD ---
+
 async function handleDownload(req, res, ydlOptions, fileExtensions, tempDirPrefix) {
     const { url } = req.query;
     const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
@@ -418,7 +415,6 @@ async function handleDownload(req, res, ydlOptions, fileExtensions, tempDirPrefi
 
 app.get('/download', (req, res) => {
     const quality = req.query.quality || "1080";
-    // Selector lebih aman untuk Vercel (fokus progressive atau mp4)
     const formatSelector = `bestvideo[height<=${quality}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${quality}]+bestaudio/best[height<=${quality}]/best`;
     handleDownload(req, res, formatSelector, ["mp4"], "download_video");
 });
@@ -428,6 +424,7 @@ app.get('/download-audio', (req, res) => {
 });
 
 // --- STARTUP ---
+
 async function startServer() {
     await initializeCookie();
     await checkFFmpeg();
